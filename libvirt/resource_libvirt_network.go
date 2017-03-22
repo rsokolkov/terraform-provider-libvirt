@@ -72,6 +72,12 @@ func resourceLibvirtNetwork() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"dhcp": &schema.Schema{
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+				ForceNew: true,
+			},
 			"running": &schema.Schema{
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -216,16 +222,18 @@ func resourceLibvirtNetworkCreate(d *schema.ResourceData, meta interface{}) erro
 					Family:  family,
 				}
 
-				start[len(start)-1]++ // then skip the .1
-				end[len(end)-1]--     // and skip the .255 (for broadcast)
+				if _, ok := d.GetOk("dhcp"); ok {
+					start[len(start)-1]++ // then skip the .1
+					end[len(end)-1]--     // and skip the .255 (for broadcast)
 
-				dni.Dhcp = &defNetworkIpDhcp{
-					Ranges: []*defNetworkIpDhcpRange{
-						&defNetworkIpDhcpRange{
-							Start: start.String(),
-							End:   end.String(),
+					dni.Dhcp = &defNetworkIpDhcp{
+						Ranges: []*defNetworkIpDhcpRange{
+							&defNetworkIpDhcpRange{
+								Start: start.String(),
+								End:   end.String(),
+							},
 						},
-					},
+					}
 				}
 				ipsPtrsLst = append(ipsPtrsLst, &dni)
 			}
@@ -347,6 +355,7 @@ func resourceLibvirtNetworkRead(d *schema.ResourceData, meta interface{}) error 
 	d.Set("running", active)
 
 	addresses := []string{}
+	dhcp := false
 	for _, address := range networkDef.Ips {
 		// we get the host interface IP (ie, 10.10.8.1) but we want the network CIDR (ie, 10.10.8.0/24)
 		// so we need some transformations...
@@ -361,10 +370,14 @@ func resourceLibvirtNetworkRead(d *schema.ResourceData, meta interface{}) error 
 		mask := net.CIDRMask(address.Prefix, bits)
 		network := addr.Mask(mask)
 		addresses = append(addresses, fmt.Sprintf("%s/%d", network, address.Prefix))
+		if address.Dhcp != nil {
+			dhcp = true
+		}
 	}
 	if len(addresses) > 0 {
 		d.Set("addresses", addresses)
 	}
+	d.Set("dhcp", dhcp)
 
 	// TODO: get any other parameters from the network and save them
 

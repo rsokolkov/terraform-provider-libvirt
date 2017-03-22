@@ -100,6 +100,7 @@ type defNetwork struct {
 
 // Check if the network has a DHCP server managed by libvirt
 func (net defNetwork) HasDHCP() bool {
+	// TODO
 	if net.Forward != nil {
 		if net.Forward.Mode == "nat" || net.Forward.Mode == "route" || net.Forward.Mode == "" {
 			return true
